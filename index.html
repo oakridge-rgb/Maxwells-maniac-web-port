@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maxwell's Maniac — Web Port</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23c0c0c0'/%3E%3Ccircle cx='5' cy='8' r='3' fill='%23e00000'/%3E%3Ccircle cx='11' cy='8' r='3' fill='%230000cc'/%3E%3C/svg%3E">
+<style>
+  /* ===== Win16 environment ===== */
+  :root {
+    --gray: #c0c0c0;
+    --gray-lt: #dfdfdf;
+    --gray-dk: #808080;
+    --gray-bk: #000000;
+    --navy: #000080;
+    --navy-dk: #0000a8;
+    --text: #000000;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+  html, body { height: 100%; }
+  body {
+    background: #008080;
+    font-family: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, "Segoe UI", sans-serif;
+    font-size: 12px;
+    color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  /* Win3.1 program window */
+  .win {
+    background: var(--gray);
+    border: 2px solid;
+    border-color: #ffffff #000000 #000000 #ffffff;
+    box-shadow: 6px 6px 0 rgba(0,0,0,.35);
+    width: min(94vw, 900px);
+  }
+  .titlebar {
+    background: var(--navy);
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 12px;
+    height: 24px;
+    display: flex; align-items: center;
+    padding: 0 4px;
+    gap: 6px;
+    letter-spacing: .2px;
+  }
+  .titlebar .t-label { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sysbtn {
+    width: 18px; height: 16px;
+    background: var(--gray);
+    border: 2px solid; border-color: #ffffff #000000 #000000 #ffffff;
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+    cursor: pointer;
+  }
+  .sysbtn.min, .sysbtn.max { margin-left: 2px; }
+  .sysbtn.min::after { content:""; width: 8px; height: 0; border-bottom: 2px solid #000; margin-top: 6px; }
+  .sysbtn.max::after { content:""; width: 10px; height: 10px; border: 2px solid #000; border-top-width: 3px; }
+  .sysbox-grid { display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; width:9px; height:9px; }
+  .sysbox-grid i { background:#000; }
+
+  .menubar {
+    display: flex; gap: 0;
+    background: var(--gray);
+    padding: 2px 4px;
+    border-bottom: 1px solid var(--gray-dk);
+  }
+  .menubar button {
+    font: inherit; background: none; border: none;
+    padding: 2px 8px; cursor: pointer; color: var(--text);
+  }
+  .menubar button:hover, .menubar button.open { background: var(--navy); color: #fff; }
+
+  .client {
+    padding: 10px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  /* canvas stage */
+  .stage-wrap {
+    position: relative;
+    width: 100%;
+    display: flex; justify-content: center;
+  }
+  canvas#game {
+    width: min(100%, 880px);
+    aspect-ratio: 440 / 320;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+    border: 2px solid; border-color: #808080 #ffffff #ffffff #808080;
+    cursor: default;
+    display: block;
+  }
+
+  .statusrow {
+    width: min(100%, 880px);
+    margin-top: 8px;
+    display: flex; gap: 6px;
+  }
+  .cell {
+    flex: 1;
+    background: var(--gray);
+    border: 2px solid; border-color: #808080 #ffffff #ffffff #808080;
+    padding: 3px 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cell b { font-weight: bold; }
+  .cell.mono { flex: 0 0 auto; }
+
+  /* Win16 dialogs (menu / help / clear / over) */
+  .overlay {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.25);
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .dlg {
+    background: var(--gray);
+    border: 2px solid; border-color: #ffffff #000000 #000000 #ffffff;
+    box-shadow: 4px 4px 0 rgba(0,0,0,.4);
+    width: min(86%, 380px);
+    padding: 0;
+  }
+  .dlg .dlg-title {
+    background: var(--navy); color: #fff; font-weight: bold;
+    height: 22px; display: flex; align-items: center; padding: 0 6px;
+    font-size: 12px;
+  }
+  .dlg .dlg-body { padding: 12px 14px 14px; }
+  .dlg p { margin: 6px 0; line-height: 1.45; font-size: 12px; }
+  .dlg .hint { color: #404040; font-size: 11px; }
+  .btnrow { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .w16btn {
+    font: inherit; font-size: 12px;
+    background: var(--gray); color: var(--text);
+    border: 2px solid; border-color: #ffffff #000000 #000000 #ffffff;
+    box-shadow: 1px 1px 0 #000;
+    padding: 4px 14px;
+    min-width: 84px;
+    cursor: pointer;
+  }
+  .w16btn:active { border-color: #000000 #ffffff #ffffff #000000; box-shadow: none; }
+  .w16btn:focus { outline: 1px dotted #000; outline-offset: -4px; }
+  .w16btn.primary { font-weight: bold; }
+  .modegrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .modegrid .w16btn { min-width: 0; padding: 6px 4px; }
+  .w16btn.sel { font-weight: bold; background: #dedede; }
+  .legend { display:flex; gap:14px; align-items:center; margin-top:8px; font-size:11px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid #000; vertical-align:-1px; }
+  .dot.r { background:#e00000; } .dot.b { background:#0000cc; } .dot.g { background:#a0a0a0; }
+
+  .foot {
+    width: min(100%, 880px);
+    margin-top: 6px;
+    color: #004040;
+    font-size: 10px;
+    text-align: center;
+    letter-spacing: .1px;
+  }
+  .foot a { color: #000080; }
+</style>
+</head>
+<body>
+
+<div class="win">
+  <div class="titlebar">
+    <div class="sysbtn sys"><div class="sysbox-grid"><i></i><i></i><i></i><i></i></div></div>
+    <div class="t-label" id="titleText">Maxwell's Maniac - [Untitled]</div>
+    <div class="sysbtn min" title="Minimize"></div>
+    <div class="sysbtn max" title="Maximize"></div>
+  </div>
+  <div class="menubar">
+    <button id="mGame">Game</button>
+    <button id="mMode">Mode</button>
+    <button id="mHelp">Help</button>
+  </div>
+  <div class="client">
+    <div class="stage-wrap">
+      <canvas id="game" width="440" height="320"></canvas>
+
+      <!-- Menu dialog -->
+      <div class="overlay show" id="ovMenu">
+        <div class="dlg">
+          <div class="dlg-title">Maxwell's Maniac</div>
+          <div class="dlg-body">
+            <p><b>Maxwell's Maniac</b> &middot; 1992 &middot; Microsoft Entertainment Pack 4<br>
+            <span class="hint">Clean-room web port. No original Microsoft code or assets.</span></p>
+            <p>Slide the door in the divider wall. Guide each molecule into its color-coded chamber.</p>
+            <div class="modegrid">
+              <button class="w16btn mode sel" data-mode="move">Move</button>
+              <button class="w16btn mode" data-mode="swap">Swap</button>
+              <button class="w16btn mode" data-mode="paint">Paint</button>
+            </div>
+            <div class="modegrid" style="grid-template-columns:1fr 1fr;">
+              <button class="w16btn skill sel" data-skill="novice">Novice</button>
+              <button class="w16btn skill" data-skill="maniac">Maniac</button>
+            </div>
+            <div class="btnrow">
+              <button class="w16btn primary" id="btnStart">Start Game</button>
+              <button class="w16btn" id="btnHow">How To Play</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help dialog -->
+      <div class="overlay" id="ovHelp">
+        <div class="dlg">
+          <div class="dlg-title">Help - Maxwell's Maniac</div>
+          <div class="dlg-body">
+            <p><b>Goal.</b> Sort every molecule into its matching chamber:
+            <span class="dot r"></span> red goes left, <span class="dot b"></span> blue goes right.
+            A molecule only counts when it <i>stays</i> on its side &mdash; shut the door behind it.</p>
+            <p><b>The door.</b> The divider has one gap. Drag the gray door (or press
+            <b>&uarr;</b>/<b>&darr;</b>) to seal the gap or open a lane. The door slides at a fixed speed:
+            think like the demon, not like the wall.</p>
+            <p><b>Modes.</b> <b>Move</b> &mdash; red only, all start on the wrong side.
+            <b>Swap</b> &mdash; red and blue start swapped. <b>Paint</b> &mdash; like Swap, but molecules
+            turn <span class="dot g"></span> gray while on the correct side and revert if they cross back.
+            Clear the level when every molecule sits on its side at once.</p>
+            <p><b>Scoring.</b> +100 when a molecule reaches its chamber for the first time,
+            plus 10 &times; seconds remaining when a level clears. When time runs out, the experiment ends.</p>
+            <p class="hint">Move / Swap / Paint modes, the sliding door and the gray-paint rule are the
+            documented mechanics of the 1992 original. Exact scoring values, timers and speeds are
+            this port's reconstruction.</p>
+            <div class="btnrow"><button class="w16btn primary" id="btnHelpOk">OK</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Level clear dialog -->
+      <div class="overlay" id="ovClear">
+        <div class="dlg">
+          <div class="dlg-title">Level Cleared</div>
+          <div class="dlg-body">
+            <p id="clearText">Level 1 cleared!</p>
+            <div class="btnrow"><button class="w16btn primary" id="btnNext">Continue</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game over dialog -->
+      <div class="overlay" id="ovOver">
+        <div class="dlg">
+          <div class="dlg-title">Time Expired</div>
+          <div class="dlg-body">
+            <p id="overText">The molecules remain unsorted.</p>
+            <div class="btnrow">
+              <button class="w16btn primary" id="btnRetry">Play Again</button>
+              <button class="w16btn" id="btnMenu">Menu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="statusrow">
+      <div class="cell mono" id="stScore"><b>Score:</b> 0</div>
+      <div class="cell mono" id="stLevel"><b>Level:</b> 1</div>
+      <div class="cell mono" id="stMode"><b>Mode:</b> Move</div>
+      <div class="cell" id="stMsg">Ready.</div>
+    </div>
+    <div class="foot">1992 game by Dima Pavlovsky / Marjacq Micro, published in Microsoft Entertainment Pack 4 &middot;
+    this is an independent clean-room reimplementation &middot; <a href="#" id="footHelp">research notes</a></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   Maxwell's Maniac - web port (clean-room reconstruction)
+   Documented mechanics: three modes (Move, Swap, Paint);
+   red/blue molecules sorted into color-coded chambers via a
+   sliding door in the divider wall; Paint grays molecules on
+   their correct side. Scoring/timing values are reconstructed.
+   ========================================================= */
+
+/* ---------- geometry (logical canvas 440x320) ---------- */
+const W = 440, H = 320;
+const CH = { x0: 16, y0: 40, x1: 424, y1: 272 };   // chamber rect
+const WALL = { cx: 220, half: 3 };                  // divider center + half thickness
+const GAP = 56;                                     // gap height in the divider
+const PANEL_H = 64;                                 // sliding door height
+const MOLECULE_R = 7;
+
+/* ---------- tuning ---------- */
+const DIFF = {
+  novice: { speed: 36,  time: 100 },
+  maniac: { speed: 52,  time: 75  },
+};
+const DOOR_SPEED = 95;          // px/s, demon's sliding speed
+const LEVEL_TIME_STEP = 5;      // seconds less per level
+const LEVEL_TIME_MIN = 45;
+const SPEED_PER_LEVEL = 1.07;   // molecule speed multiplier per level
+const SPEED_CAP = 1.9;
+const SCORE_SORT = 100;
+const SCORE_TIME_BONUS = 10;    // per remaining second
+
+/* ---------- state ---------- */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const MM = window.MM = {            // exposed for testing/debug
+  state: "menu", mode: "move", skill: "novice",
+  level: 1, score: 0, timeLeft: 0,
+  molecules: [], door: { y: CH.y0 }, doorTarget: (CH.y0 + CH.y1 - PANEL_H) / 2,
+  sound: true,
+};
+
+let acc = 0, last = 0, rafId = 0;
+let lastDoorCovered = false;
+
+/* ---------- audio (PC-speaker style, WebAudio) ---------- */
+let AC = null;
+function audio() {
+  if (!MM.sound) return null;
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+}
+function beep(freq, ms, vol = 0.06, type = "square", slideTo = null) {
+  const ac = audio(); if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = freq;
+  if (slideTo) o.frequency.linearRampToValueAtTime(slideTo, ac.currentTime + ms / 1000);
+  g.gain.value = vol;
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + ms / 1000);
+  o.connect(g).connect(ac.destination);
+  o.start(); o.stop(ac.currentTime + ms / 1000 + 0.02);
+}
+const sfx = {
+  tick:   () => beep(220, 30, 0.05),
+  sort:   () => { beep(880, 45, 0.06); setTimeout(() => beep(1320, 55, 0.05), 40); },
+  unpaint:() => beep(300, 60, 0.045, "square", 180),
+  clear:  () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 90, 0.06), i * 95)),
+  over:   () => beep(140, 400, 0.07, "square", 90),
+  start:  () => beep(660, 70, 0.05, "square", 990),
+  doorMove: null,
+};
+
+/* ---------- helpers ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const chamberMidY = () => (CH.y0 + CH.y1) / 2;
+const gapTop = () => chamberMidY() - GAP / 2;
+const gapBottom = () => chamberMidY() + GAP / 2;
+const wallLeft = () => WALL.cx - WALL.half;
+const wallRight = () => WALL.cx + WALL.half;
+const doorCovers = (y) => y >= MM.door.y && y <= MM.door.y + PANEL_H;
+function passableAt(y) {
+  if (y < gapTop() || y > gapBottom()) return false;   // solid wall outside the gap
+  return !doorCovers(y);                               // door seals the gap
+}
+const correctSide = (m) => (m.color === "red" ? m.x < WALL.cx : m.x > WALL.cx);
+
+/* ---------- level setup ---------- */
+function spawnMolecule(color, side) {
+  const m = { color, x: 0, y: 0, vx: 0, vy: 0, r: MOLECULE_R, scored: false };
+  // side: "left" | "right"
+  const margin = m.r + 4;
+  if (side === "right") m.x = rand(wallRight() + margin + 6, CH.x1 - margin);
+  else                  m.x = rand(CH.x0 + margin, wallLeft() - margin - 6);
+  m.y = rand(CH.y0 + margin, CH.y1 - margin);
+  const ang = rand(0, Math.PI * 2);
+  const spd = moleculeSpeed();
+  m.vx = Math.cos(ang) * spd; m.vy = Math.sin(ang) * spd;
+  return m;
+}
+function moleculeSpeed() {
+  const d = DIFF[MM.skill];
+  return d.speed * Math.min(SPEED_CAP, Math.pow(SPEED_PER_LEVEL, MM.level - 1));
+}
+function buildLevel() {
+  const n = Math.min(24, 6 + 2 * (MM.level - 1));
+  MM.molecules = [];
+  if (MM.mode === "move") {
+    for (let i = 0; i < n; i++) MM.molecules.push(spawnMolecule("red", "right"));
+  } else {
+    const half = Math.ceil(n / 2);
+    for (let i = 0; i < half; i++) MM.molecules.push(spawnMolecule("red", "right"));
+    for (let i = 0; i < n - half; i++) MM.molecules.push(spawnMolecule("blue", "left"));
+  }
+  MM.door.y = (CH.y0 + CH.y1 - PANEL_H) / 2;
+  MM.doorTarget = MM.door.y;
+  MM.timeLeft = Math.max(LEVEL_TIME_MIN, DIFF[MM.skill].time - LEVEL_TIME_STEP * (MM.level - 1));
+  setStatus("Level " + MM.level + " - sort the molecules!");
+}
+
+/* ---------- physics ---------- */
+function stepMolecules(dt) {
+  const spd = moleculeSpeed();
+  const margin = MOLECULE_R;
+  for (const m of MM.molecules) {
+    // keep a constant target speed (drift correction)
+    const cur = Math.hypot(m.vx, m.vy) || 1;
+    const k = 1 + (spd / cur - 1) * Math.min(1, dt * 4);
+    m.vx *= k; m.vy *= k;
+
+    const px = m.x;
+    m.x += m.vx * dt; m.y += m.vy * dt;
+
+    // outer walls
+    if (m.x - m.r < CH.x0) { m.x = CH.x0 + m.r; m.vx = Math.abs(m.vx); }
+    if (m.x + m.r > CH.x1) { m.x = CH.x1 - m.r; m.vx = -Math.abs(m.vx); }
+    if (m.y - m.r < CH.y0) { m.y = CH.y0 + m.r; m.vy = Math.abs(m.vy); }
+    if (m.y + m.r > CH.y1) { m.y = CH.y1 - m.r; m.vy = -Math.abs(m.vy); }
+
+    // divider wall + door: horizontal plane crossing
+    const crossingR = px + m.r <= wallLeft() && m.x + m.r > wallLeft();   // moving right into wall
+    const crossingL = px - m.r >= wallRight() && m.x - m.r < wallRight(); // moving left into wall
+    if (crossingR || crossingL) {
+      if (!passableAt(m.y)) {
+        if (crossingR) { m.x = wallLeft() - m.r; m.vx = -Math.abs(m.vx); }
+        else           { m.x = wallRight() + m.r; m.vx = Math.abs(m.vx); }
+      }
+    }
+    // squeezed inside the wall band while the door closed: eject toward own side
+    if (m.x + m.r > wallLeft() && m.x - m.r < wallRight() && !passableAt(m.y)) {
+      if (px <= WALL.cx) { m.x = wallLeft() - m.r; m.vx = -Math.abs(m.vx); }
+      else               { m.x = wallRight() + m.r; m.vx = Math.abs(m.vx); }
+    }
+  }
+
+  // molecule-molecule elastic collisions (equal mass: swap normal components)
+  for (let i = 0; i < MM.molecules.length; i++) {
+    for (let j = i + 1; j < MM.molecules.length; j++) {
+      const a = MM.molecules[i], b = MM.molecules[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy), min = a.r + b.r;
+      if (d > 0 && d < min) {
+        const nx = dx / d, ny = dy / d;
+        const avn = a.vx * nx + a.vy * ny;
+        const bvn = b.vx * nx + b.vy * ny;
+        if (avn - bvn > 0) {           // approaching: exchange normal velocities
+          const t = avn; 
+          a.vx += (bvn - avn) * nx; a.vy += (bvn - avn) * ny;
+          b.vx += (t - bvn) * nx;   b.vy += (t - bvn) * ny;
+        }
+        const push = (min - d) / 2 + 0.5;
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+      }
+    }
+  }
+
+  // scoring + paint transitions
+  for (const m of MM.molecules) {
+    const ok = correctSide(m);
+    if (ok && !m.wasCorrect) {
+      if (!m.scored) { MM.score += SCORE_SORT; m.scored = true; sfx.sort(); }
+      else if (MM.mode === "paint") sfx.sort();
+      setStatus(m.color === "red" ? "Red molecule home." : "Blue molecule home.");
+    }
+    if (!ok && m.wasCorrect && MM.mode === "paint") sfx.unpaint();
+    m.wasCorrect = ok;
+  }
+}
+
+function stepDoor(dt) {
+  const min = CH.y0, max = CH.y1 - PANEL_H;
+  MM.doorTarget = clamp(MM.doorTarget, min, max);
+  const dy = MM.doorTarget - MM.door.y;
+  const move = clamp(dy, -DOOR_SPEED * dt, DOOR_SPEED * dt);
+  if (move !== 0) MM.door.y += move;
+  MM.door.y = clamp(MM.door.y, min, max);
+  const covered = doorCovers((gapTop() + gapBottom()) / 2);
+  if (covered !== lastDoorCovered) { sfx.tick(); lastDoorCovered = covered; }
+}
+
+/* ---------- win / lose ---------- */
+function allSorted() {
+  return MM.molecules.every(correctSide);
+}
+function checkEnd() {
+  if (MM.state === "play" && allSorted()) {
+    const bonus = Math.ceil(MM.timeLeft) * SCORE_TIME_BONUS;
+    MM.score += bonus;
+    MM.state = "clear";
+    sfx.clear();
+    document.getElementById("clearText").textContent =
+      "Level " + MM.level + " cleared!  Bonus: " + bonus +
+      "  Score: " + MM.score;
+    showOverlay("ovClear");
+    setTitle("Maxwell's Maniac - [Level " + MM.level + " cleared]");
+  }
+}
+function tickTime(dt) {
+  MM.timeLeft -= dt;
+  if (MM.timeLeft <= 0) {
+    MM.timeLeft = 0;
+    MM.state = "over";
+    sfx.over();
+    document.getElementById("overText").textContent =
+      "The molecules remain unsorted.  Final score: " + MM.score + "  (Level " + MM.level + ")";
+    showOverlay("ovOver");
+    setTitle("Maxwell's Maniac - [Time expired]");
+  }
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  // playfield background
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, W, H);
+
+  // chamber tint per side (very subtle) + color-coded inner borders
+  ctx.fillStyle = "rgba(224,0,0,0.10)";
+  ctx.fillRect(CH.x0, CH.y0, WALL.cx - WALL.half - CH.x0, CH.y1 - CH.y0);
+  ctx.fillStyle = "rgba(0,0,204,0.10)";
+  ctx.fillRect(WALL.cx + WALL.half, CH.y0, CH.x1 - (WALL.cx + WALL.half), CH.y1 - CH.y0);
+
+  // color-coded chamber borders
+  ctx.fillStyle = "#e00000";
+  ctx.fillRect(CH.x0, CH.y0, 2, CH.y1 - CH.y0);
+  ctx.fillStyle = "#0000cc";
+  ctx.fillRect(CH.x1 - 2, CH.y0, 2, CH.y1 - CH.y0);
+  ctx.fillStyle = "#606060";
+  ctx.fillRect(CH.x0, CH.y0, CH.x1 - CH.x0, 1);
+  ctx.fillRect(CH.x0, CH.y1 - 1, CH.x1 - CH.x0, 1);
+
+  // divider wall (solid everywhere except the gap)
+  ctx.fillStyle = "#808080";
+  ctx.fillRect(wallLeft(), CH.y0, WALL.half * 2, gapTop() - CH.y0);
+  ctx.fillRect(wallLeft(), gapBottom(), WALL.half * 2, CH.y1 - gapBottom());
+  ctx.fillStyle = "#c0c0c0";
+  ctx.fillRect(wallLeft(), CH.y0, 1, gapTop() - CH.y0);
+  ctx.fillRect(wallLeft(), gapBottom(), 1, CH.y1 - gapBottom());
+
+  // sliding door panel (covers its y-range across the wall band)
+  const dx = wallLeft() - 2, dw = WALL.half * 2 + 4;
+  ctx.fillStyle = "#dfdfdf";
+  ctx.fillRect(dx, MM.door.y, dw, PANEL_H);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(dx, MM.door.y, 1, PANEL_H);
+  ctx.fillRect(dx, MM.door.y, dw, 1);
+  ctx.fillStyle = "#404040";
+  ctx.fillRect(dx + dw - 1, MM.door.y, 1, PANEL_H);
+  ctx.fillRect(dx, MM.door.y + PANEL_H - 1, dw, 1);
+  // door grip hatch
+  ctx.fillStyle = "#808080";
+  for (let yy = MM.door.y + 10; yy < MM.door.y + PANEL_H - 8; yy += 8) {
+    ctx.fillRect(dx + 2, yy, dw - 4, 1);
+  }
+  // arrows on the door
+  ctx.fillStyle = "#000000";
+  const ay = MM.door.y + PANEL_H / 2;
+  ctx.fillRect(dx + dw / 2 - 1, ay - 10, 2, 20);
+
+  // molecules
+  for (const m of MM.molecules) {
+    const ok = correctSide(m);
+    let fill = m.color === "red" ? "#e00000" : "#0000cc";
+    if (MM.mode === "paint" && ok) fill = "#a0a0a0";
+    ctx.beginPath();
+    ctx.arc(m.x | 0, m.y | 0, m.r, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = "#000000"; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillRect((m.x - m.r / 2) | 0, (m.y - m.r / 2) | 0, 2, 2);
+  }
+
+  // status strip inside canvas (top)
+  ctx.fillStyle = "#000080";
+  ctx.fillRect(0, 0, W, 30);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 13px 'MS Sans Serif', Tahoma, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillText("Score " + String(MM.score).padStart(5, "0"), 12, 15);
+  ctx.fillText("Level " + MM.level, 130, 15);
+  const modeName = { move: "Move", swap: "Swap", paint: "Paint" }[MM.mode];
+  ctx.fillText("Mode: " + modeName, 205, 15);
+  ctx.textAlign = "right";
+  const t = Math.max(0, MM.timeLeft);
+  ctx.fillText("Time " + Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0"), W - 12, 15);
+
+  // timer bar (bottom)
+  const btY = CH.y1 + 8, btH = 10, btW = CH.x1 - CH.x0;
+  const total = Math.max(LEVEL_TIME_MIN, DIFF[MM.skill].time);
+  const frac = clamp(MM.timeLeft / total, 0, 1);
+  ctx.fillStyle = "#404040";
+  ctx.fillRect(CH.x0, btY, btW, btH);
+  ctx.fillStyle = frac > 0.25 ? "#00a000" : "#e00000";
+  ctx.fillRect(CH.x0 + 1, btY + 1, (btW - 2) * frac, btH - 2);
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1;
+  ctx.strokeRect(CH.x0 + 0.5, btY + 0.5, btW - 1, btH - 1);
+  ctx.textAlign = "left";
+}
+
+/* ---------- main loop ---------- */
+function frame(ts) {
+  rafId = requestAnimationFrame(frame);
+  if (!last) last = ts;
+  let dt = (ts - last) / 1000; last = ts;
+  dt = Math.min(dt, 0.05);
+
+  if (MM.state === "play") {
+    acc += dt;
+    const STEP = 1 / 120;
+    while (acc >= STEP) {
+      stepDoor(STEP);
+      stepMolecules(STEP);
+      tickTime(STEP);
+      acc -= STEP;
+      if (MM.state !== "play") { acc = 0; break; }
+    }
+    if (MM.state === "play") checkEnd();
+  }
+  render();
+  syncStatus();
+}
+
+/* ---------- UI wiring ---------- */
+function setTitle(t) { document.getElementById("titleText").textContent = t; }
+function showOverlay(id) {
+  document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  if (id) document.getElementById(id).classList.add("show");
+}
+function setStatus(msg) { document.getElementById("stMsg").textContent = msg; }
+function syncStatus() {
+  document.getElementById("stScore").innerHTML = "<b>Score:</b> " + MM.score;
+  document.getElementById("stLevel").innerHTML = "<b>Level:</b> " + MM.level;
+  const mn = { move: "Move", swap: "Swap", paint: "Paint" }[MM.mode];
+  document.getElementById("stMode").innerHTML = "<b>Mode:</b> " + mn + " / " + MM.skill;
+}
+
+function startGame() {
+  MM.level = 1; MM.score = 0;
+  buildLevel();
+  MM.state = "play"; acc = 0; last = 0;
+  showOverlay(null);
+  sfx.start();
+  setTitle("Maxwell's Maniac - [" + MM.mode.toUpperCase() + " Level " + MM.level + "]");
+}
+function nextLevel() {
+  MM.level++;
+  buildLevel();
+  MM.state = "play"; acc = 0;
+  showOverlay(null);
+  setTitle("Maxwell's Maniac - [" + MM.mode.toUpperCase() + " Level " + MM.level + "]");
+}
+function toMenu() {
+  MM.state = "menu";
+  showOverlay("ovMenu");
+  setTitle("Maxwell's Maniac - [Untitled]");
+}
+
+document.getElementById("btnStart").addEventListener("click", startGame);
+document.getElementById("btnNext").addEventListener("click", nextLevel);
+document.getElementById("btnRetry").addEventListener("click", startGame);
+document.getElementById("btnMenu").addEventListener("click", toMenu);
+document.getElementById("btnHow").addEventListener("click", () => showOverlay("ovHelp"));
+document.getElementById("btnHelpOk").addEventListener("click", () => {
+  showOverlay(MM.state === "menu" ? "ovMenu" : null);
+});
+document.getElementById("footHelp").addEventListener("click", (e) => { e.preventDefault(); showOverlay("ovHelp"); });
+document.getElementById("mHelp").addEventListener("click", () => showOverlay("ovHelp"));
+document.getElementById("mGame").addEventListener("click", () => {
+  if (MM.state === "play") { toMenu(); } else { showOverlay("ovMenu"); }
+});
+document.getElementById("mMode").addEventListener("click", () => showOverlay("ovMenu"));
+
+document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".mode").forEach(x => x.classList.remove("sel"));
+  b.classList.add("sel");
+  MM.mode = b.dataset.mode;
+}));
+document.querySelectorAll(".skill").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".skill").forEach(x => x.classList.remove("sel"));
+  b.classList.add("sel");
+  MM.skill = b.dataset.skill;
+}));
+
+/* door input: drag / click on canvas, or arrow keys */
+function pointerY(e) {
+  const r = canvas.getBoundingClientRect();
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return cy * (H / r.height);
+}
+let dragging = false;
+function setDoorTargetFromEvent(e) {
+  const y = pointerY(e);
+  MM.doorTarget = clamp(y - PANEL_H / 2, CH.y0, CH.y1 - PANEL_H);
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (MM.state !== "play") return;
+  dragging = true; canvas.setPointerCapture(e.pointerId);
+  setDoorTargetFromEvent(e);
+});
+canvas.addEventListener("pointermove", (e) => { if (dragging && MM.state === "play") setDoorTargetFromEvent(e); });
+canvas.addEventListener("pointerup", () => { dragging = false; });
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
+    if (MM.state === "play") { MM.doorTarget -= 18; e.preventDefault(); }
+  } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
+    if (MM.state === "play") { MM.doorTarget += 18; e.preventDefault(); }
+  } else if (e.key === "Enter") {
+    if (MM.state === "clear") nextLevel();
+    else if (MM.state === "over") startGame();
+    else if (MM.state === "menu" && document.getElementById("ovMenu").classList.contains("show")) startGame();
+  } else if (e.key === "Escape") {
+    if (MM.state !== "menu") toMenu();
+  }
+});
+
+/* boot */
+render();
+syncStatus();
+rafId = requestAnimationFrame(frame);
+</script>
+</body>
+</html>
